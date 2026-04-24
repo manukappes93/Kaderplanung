@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Spielerkader Planung</title>
+ 
+<style>
+body{
+    font-family:Arial,sans-serif;
+    padding:20px;
+    background:#f4f6f8;
+}
+h2{text-align:center}
+ 
+/* === TOP === */
+.top-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:20px;
+    margin-bottom:20px;
+}
+.top-box{
+    background:#eef1f4;
+    padding:10px;
+    border-radius:6px;
+    min-height:220px;
+}
+.top-box strong{
+    display:block;
+    text-align:center;
+    margin-bottom:8px;
+}
+.top-box label{display:block;margin-bottom:6px}
+ 
+.top-box.spiel{
+    display:flex;
+    flex-direction:column;
+}
+ 
+/* Button */
+.wa-button{
+    margin-top:auto;
+    padding:10px;
+    width:100%;
+    background:#0078d4;
+    color:#fff;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+.wa-button:disabled{
+    background:#9bbbd4;
+    cursor:not-allowed;
+}
+ 
+/* Status */
+.status{font-size:13px;margin-top:6px}
+.status.ok{color:#28a745}
+.status.warn{color:#c0392b}
+ 
+/* === DRAG & DROP === */
+.container{
+    display:flex;
+    gap:20px;
+    align-items:stretch; /* ✅ alle Spalten gleich hoch */
+}
+ 
+.column{
+    flex:1;
+    display:flex;
+}
+ 
+.box{
+    flex:1;                 /* ✅ füllt komplette Spaltenhöhe */
+    min-height:320px;
+    display:flex;
+    flex-direction:column;
+}
+ 
+.box h3{text-align:center;pointer-events:none}
+ 
+.item{
+    padding:8px;
+    margin:6px 0;
+    border-radius:5px;
+    cursor:grab;
+    color:#fff;
+    position:relative;
+    touch-action:none;
+}
+ 
+.pool-player{background:#0078d4}
+.starter{background:#28a745}
+.reserve{background:#ffc107;color:#000}
+ 
+/* Duplikat */
+.item.duplicate{
+    border-left:4px solid #c0392b;
+}
+ 
+/* verhindert Drag-Start auf Kindelementen */
+.item * {
+    pointer-events: none;
+}
+ 
+/* Löschen */
+.delete-btn{
+    position:absolute;
+    right:6px;
+    top:4px;
+    font-size:12px;
+    cursor:pointer;
+    pointer-events: auto;   /* ✅ DAS IST DER FIX */
+    z-index: 5;
+}
+ 
+/* === OVERLAY === */
+.overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.6);
+    display:none;
+    align-items:center;
+    justify-content:center;
+}
+.modal{
+    background:#fff;
+    padding:20px;
+    width:520px;
+    max-width:95%;
+    border-radius:8px;
+}
+.modal textarea{
+    width:100%;
+    height:280px;
+    margin-bottom:10px;
+}
+</style>
+</head>
+ 
+<body>
+ 
+<h2>Spielerkader & Spielplanung</h2>
+ 
+<div class="top-grid">
+ 
+    <!-- 2. Mannschaft -->
+    <div class="top-box">
+        <strong>2. Mannschaft</strong>
+        <label>Treffpunkt
+            <input type="time" id="meetTeam2" disabled>
+        </label>
+        <label>Anpfiff
+            <input type="time" id="kickoffTeam2" value="13:00">
+        </label>
+    </div>
+ 
+    <!-- Spiel -->
+    <div class="top-box spiel">
+        <strong>Spiel</strong>
+        <label>Gegner <input id="opponent"></label>
+ 
+            <label>
+            <input type="radio" name="venue" value="Heimspiel" checked>
+            Heimspiel
+            </label>
+           
+            <label>
+           <input type="radio" name="venue" value="Auswärtsspiel">
+            Auswärtsspiel
+            </label>
+ 
+            <label id="trikotwahl" style="display:none">
+                        👕 Trikotfarbe:
+                        <select id="awayColor">
+            <option value="Rot">🔴 Rot</option>
+            <option value="Schwarz">⚫ Schwarz</option>
+                         </select>
+            </label>
+ 
+            <button class="wa-button"
+        style="background:#c0392b"
+        onclick="resetToHtmlInitial()">
+            🔘 Reset
+            </button>
+ 
+        <button id="waBtn" class="wa-button" disabled onclick="openOverlay()">
+            📩 WhatsApp‑Text erzeugen
+        </button>
+        <div id="status" class="status warn">
+            ❗ Gegner + je 11 Spieler nötig
+        </div>
+    </div>
+ 
+    <!-- 1. Mannschaft -->
+    <div class="top-box">
+        <strong>1. Mannschaft</strong>
+        <label>
+            <input type="checkbox" id="syncKickoff" checked>
+            Treffpunkt = Anpfiff 2. Mannschaft
+        </label>
+        <label>Treffpunkt
+            <input type="time" id="meetTeam1">
+        </label>
+        <label>Anpfiff
+            <input type="time" id="kickoffTeam1" value="15:00">
+        </label>
+    </div>
+ 
+</div>
+ 
+ 
+<div class="container">
+ 
+<div class="column">
+    <div class="box" id="team2" ondragover="allow(event)" ondrop="drop(event)">
+        <h3>2. Mannschaft</h3>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+             data-name="Eric Winterstein">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Felix Schlund">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Heiko Plank">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Jannis Busch">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Lorenz Breisch">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Lucas Tripps">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Lukas Häberlein">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Maike Schmieg">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Marco Häberlein">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Marius Rögele">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Markus Müller">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Maximilian Schneider">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Michael Kehr">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Nicolas Brümmer">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Niklas Schaffert">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Sascha Vogel">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Thomas Böhm">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Timo Horlacher">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Toni Thoi">
+            <span class="name"></span>
+        </div>
+ 
+    </div>
+</div>
+ 
+<div class="column">
+    <div class="box" id="pool" ondragover="allow(event)" ondrop="drop(event)">
+        <h3>Spielerpool</h3>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Adrian Philipp">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Andi Etzel">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Daniel Vogt">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Daniel Ley">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="David Reszneki">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Dirk Kleinert">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Heiko Kleinheinz">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Henning Kresbach">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Jan Bauer">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Kay Bachmann">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Lukas Maurer">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Manuel Baumann">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Marcel Haag">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Markus Reinhardt">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Michael Dörr">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Moritz Ehrmann">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Niklas Dieroff">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Rafael Götz">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Sven Stippschild">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+             data-name="Valentin Meinikheim">
+            <span class="name"></span>
+        </div>
+ 
+    </div>
+</div>
+ 
+<div class="column">
+    <div class="box" id="team1" ondragover="allow(event)" ondrop="drop(event)">
+        <h3>1. Mannschaft</h3>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Daniel Hörner">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Flavio Vogel">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Janne Rutsch">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Jens Reichert">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Johannes Gröber">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Jonas Dieroff">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Manuel Kappes">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Nico Kurzay">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Otto Bauer">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Patrick Haag">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item starter" draggable="true" ondragstart="drag(event)"
+               data-name="Patrick Jakob">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Robin Vogel">
+            <span class="name"></span>
+        </div>
+ 
+        <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Roman Dieroff">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Steffen Kümmerer">
+            <span class="name"></span>
+        </div>
+ 
+            <div class="item pool-player" draggable="true" ondragstart="drag(event)"
+               data-name="Steffen Mütsch">
+            <span class="name"></span>
+        </div>
+ 
+    </div>
+</div>
+ 
+</div>
+ 
+<!-- OVERLAY -->
+<div class="overlay" id="overlay">
+    <div class="modal">
+        <h3>WhatsApp‑Nachricht</h3>
+        <textarea id="waText"></textarea><br>
+        <button onclick="copyText()">📋 Kopieren</button>
+        <button onclick="closeOverlay()">Schließen</button>
+    </div>
+</div>
+ 
+<script>
+ 
+let isLoading = true;
+let htmlInitialState = null;
+ 
+/* =========================================================
+   ROBUSTES DRAG & DROP (DESKTOP)
+   ========================================================= */
+ 
+let draggedItem = null;
+ 
+function allow(event){
+    event.preventDefault();
+}
+ 
+function drag(event){
+    const item = event.target.closest(".item");
+    if(!item) return;
+ 
+    draggedItem = item;
+ 
+    // notwendig, damit HTML5-DnD startet
+    event.dataTransfer.setData("text/plain", "drag");
+}
+ 
+function drop(event){
+    event.preventDefault();
+ 
+    if(!draggedItem) return;
+ 
+    const box = event.target.closest(".box");
+    if(!box) return;
+ 
+    box.appendChild(draggedItem);
+    draggedItem = null;
+ 
+    updateAll();
+}
+ 
+/* =========================================================
+   TOUCH-DRAG (MOBILE)
+   ========================================================= */
+ 
+let touchItem = null;
+ 
+document.addEventListener("touchstart", e => {
+    const item = e.target.closest(".item");
+    if(item){
+        touchItem = item;
+        item.style.opacity = "0.6";
+    }
+}, { passive:true });
+ 
+document.addEventListener("touchend", e => {
+    if(!touchItem) return;
+ 
+    const el = document.elementFromPoint(
+        e.changedTouches[0].clientX,
+        e.changedTouches[0].clientY
+    );
+ 
+    const box = el?.closest(".box");
+    if(box) box.appendChild(touchItem);
+ 
+    touchItem.style.opacity = "1";
+    touchItem = null;
+ 
+    updateAll();
+});
+ 
+/* =========================================================
+   UPDATE: NUMMERIERUNG, FARBE, STATUS
+   ========================================================= */
+ 
+function updateAll(){
+    document.querySelectorAll(".box").forEach(box => {
+ 
+        // ✅ ALPHABETISCH SORTIEREN
+        sortBoxAlphabetically(box);
+ 
+        [...box.querySelectorAll(".item")].forEach((p, i) => {
+            const name = p.querySelector(".name");
+            if(name){
+                name.textContent = `${i+1}. ${p.dataset.name}`;
+            }
+ 
+            p.classList.remove("pool-player", "starter", "reserve");
+ 
+            if(box.id === "pool"){
+                p.classList.add("pool-player");
+            } else {
+                p.classList.add(i < 11 ? "starter" : "reserve");
+            }
+        });
+    });
+ 
+    updateButton();
+    saveState();
+}
+ 
+/* =========================================================
+   DUPLIKAT (MAX. 1 PRO SPIELER)
+   ========================================================= */
+ 
+document.addEventListener("contextmenu", e => {
+    const p = e.target.closest(".item");
+    if(!p || p.dataset.duplicate) return;
+ 
+    if(document.querySelector(`[data-original="${p.id}"]`)) return;
+ 
+    const from = p.closest(".box")?.id;
+    const target =
+        from === "team1" ? "team2" :
+        from === "team2" ? "team1" :
+        null;
+ 
+    if(!target) return;
+ 
+    e.preventDefault();
+    createDuplicate(p, document.getElementById(target));
+});
+ 
+function createDuplicate(orig, box){
+    const d = document.createElement("div");
+    d.className = "item duplicate";
+    d.dataset.original = orig.dataset.name;
+    d.dataset.duplicate = "true";
+    d.dataset.name = "(" + orig.dataset.name + ")";
+    d.draggable = true;
+    d.ondragstart = drag;
+ 
+    const name = document.createElement("span");
+    name.className = "name";
+    d.appendChild(name);
+ 
+    const del = document.createElement("span");
+    del.className = "delete-btn";
+    del.textContent = "❌";        // ✅ DAS hat gefehlt
+ 
+    del.onclick = e => {
+        e.stopPropagation();
+ 
+        // sofort visuell entfernen
+        d.style.display = "none";
+ 
+        // endgültig aus dem DOM
+        d.remove();
+ 
+        // Update nach Render
+        requestAnimationFrame(updateAll);
+    };
+ 
+    d.appendChild(del);
+ 
+    box.appendChild(d);
+    updateAll();
+}
+ 
+ 
+function serializeBox(id){
+    return [...document.querySelectorAll(`#${id} .item`)].map(p => ({
+        name: p.dataset.name,
+        duplicate: p.dataset.duplicate === "true"
+    }));
+}
+ 
+ 
+/* =========================================================
+   BUTTON-LOGIK (WHATSAPP-TEXT ERZEUGEN)
+   ========================================================= */
+ 
+const waBtn = document.getElementById("waBtn");
+const status = document.getElementById("status");
+opponent.oninput = updateButton;
+ 
+function updateButton(){
+    const opp = opponent.value.trim();
+    const t1 = document.querySelectorAll("#team1 .item").length;
+    const t2 = document.querySelectorAll("#team2 .item").length;
+ 
+    if(opp && t1 >= 11 && t2 >= 11){
+        waBtn.disabled = false;
+        status.textContent = "✅ Alle Voraussetzungen erfüllt";
+        status.className = "status ok";
+    } else {
+        waBtn.disabled = true;
+        status.textContent = "❗ Gegner + je 11 Spieler nötig";
+        status.className = "status warn";
+    }
+}
+ 
+/* =========================================================
+   OVERLAY (KOPIER-TEXT)
+   ========================================================= */
+ 
+function openOverlay(){
+    waText.value = generateText();
+    overlay.style.display = "flex";
+}
+ 
+function closeOverlay(){
+    overlay.style.display = "none";
+}
+ 
+function copyText(){
+    navigator.clipboard.writeText(waText.value);
+}
+ 
+/* =========================================================
+   TEXT-GENERATOR
+   ========================================================= */
+ 
+function list(id){
+    return [...document.querySelectorAll(`#${id} .item`)]
+        .map((p, i) => `\n${i + 1}. ${p.dataset.name}`)
+        .join("");
+}
+ 
+ 
+function generateText(){
+ 
+    const team1Players = document.querySelectorAll("#team1 .item").length;
+    const team2Players = document.querySelectorAll("#team2 .item").length;
+ 
+    const introText =
+        (team1Players > 0 && team2Players > 0)
+        ? "Es stehen wieder zwei wichtige Spiele an!"
+        : "Es steht ein wichtiges Spiel an!";
+ 
+let reserveBlock = "";
+if(team2Players > 0){
+    reserveBlock =
+        "\n━━━━━━━━━━━━━━\n" +
+        "*Reserve*\n" +
+        "━━━━━━━━━━━━━━\n" +
+        "⏰ Treffpunkt: *" + (meetTeam2.value || "—") + " Uhr*\n" +
+        "⚽ Anpfiff:   *" + (kickoffTeam2.value || "—") + " Uhr*\n\n" +
+        "👥 *Kader*\n" +
+        list("team2") +
+        "\n";   // ✅ Leerzeile NACH dem Kader der 2. Mannschaft
+}
+ 
+const ersteBlock =
+    "\n━━━━━━━━━━━━━━\n" +
+    "*1. Mannschaft*\n" +
+    "━━━━━━━━━━━━━━\n" +
+    "⏰ Treffpunkt: *" + (meetTeam1.value || "—") + " Uhr*\n" +
+    "⚽ Anpfiff:   *" + (kickoffTeam1.value || "—") + " Uhr*\n\n" +
+    "👥 *Kader*\n" +
+    list("team1");
+ 
+    return (
+        "Servus zusammen,\n\n" +
+        introText + "\n\n" +
+        "Hier die Infos:\n" +
+        reserveBlock +
+        ersteBlock +
+ 
+            generateTrikotText() +
+ 
+            "Bereitet euch gut vor uns lasst uns gemeinsam weiter für die Erreichung unserer Ziele kämpfen!💪🔥\n\n\n" +
+ 
+            "Bis dann ✌️"
+ 
+    );
+}
+ 
+ 
+function sortBoxAlphabetically(box){
+    const items = [...box.querySelectorAll(".item")];
+ 
+    items.sort((a, b) => {
+        const aIsDuplicate = a.dataset.duplicate === "true";
+        const bIsDuplicate = b.dataset.duplicate === "true";
+ 
+        // ✅ Duplikate IMMER ans Ende
+        if(aIsDuplicate && !bIsDuplicate) return 1;
+        if(!aIsDuplicate && bIsDuplicate) return -1;
+ 
+        // ✅ alphabetisch sortieren (Klammern egal)
+        return a.dataset.name.localeCompare(
+            b.dataset.name,
+            "de",
+            { sensitivity: "base" }
+        );
+    });
+ 
+    items.forEach(item => box.appendChild(item));
+}
+ 
+/* =========================================================
+   Trikotwahl
+   ========================================================= */
+ 
+function updateTrikotwahl(){
+    const venue = [...document.querySelectorAll("input[name=venue]")]
+        .find(r => r.checked)?.value;
+ 
+    const el = document.getElementById("trikotwahl");
+    if(!el) return;
+ 
+    el.style.display = venue === "Auswärtsspiel" ? "block" : "none";
+}
+ 
+document.querySelectorAll("input[name=venue]")
+    .forEach(r => r.addEventListener("change", updateTrikotwahl));
+ 
+// Initial
+updateTrikotwahl();
+ 
+ 
+function generateTrikotText(){
+    const venue = [...document.querySelectorAll("input[name=venue]")]
+        .find(r => r.checked)?.value;
+ 
+    // Heimspiel → beide Farben
+    if(venue === "Heimspiel"){
+        return "\n\n\n👕 *Bitte beide Trikotfarben mitbringen!* 🔴⚫\n\n\n";
+    }
+ 
+    // Auswärtsspiel → gewählte Farbe
+    if(venue === "Auswärtsspiel"){
+        const color = document.getElementById("awayColor")?.value || "Rot";
+        const emoji = color === "Rot" ? "🔴" : "⚫";
+        return `\n\n\n👕 *Wir spielen in ${emoji} ${color}!*\n\n\n`;
+    }
+ 
+    return "";
+}
+ 
+ 
+/* =========================================================
+   LOCAL STORAGE – SPEICHERN & LADEN
+   ========================================================= */
+ 
+function saveState(){
+    if(isLoading) return;
+ 
+    const state = {
+        opponent: document.getElementById("opponent")?.value || "",
+        venue: [...document.querySelectorAll("input[name=venue]")]
+            .find(r => r.checked)?.value || "Heimspiel",
+ 
+        kickoffTeam1: document.getElementById("kickoffTeam1")?.value || "",
+        kickoffTeam2: document.getElementById("kickoffTeam2")?.value || "",
+        meetTeam1: document.getElementById("meetTeam1")?.value || "",
+        meetTeam2: document.getElementById("meetTeam2")?.value || "",
+        syncKickoff: document.getElementById("syncKickoff")?.checked || false,
+ 
+        teams: {
+            pool:  serializeBox("pool"),
+            team1: serializeBox("team1"),
+            team2: serializeBox("team2")
+        }
+    };
+ 
+    localStorage.setItem("spielplanung_state", JSON.stringify(state));
+}
+ 
+function captureHtmlInitialState(){
+    return {
+        opponent: document.getElementById("opponent")?.value || "",
+        venue: [...document.querySelectorAll("input[name=venue]")]
+            .find(r => r.checked)?.value || "Heimspiel",
+ 
+        kickoffTeam1: kickoffTeam1.value,
+        kickoffTeam2: kickoffTeam2.value,
+        meetTeam1: meetTeam1.value,
+        meetTeam2: meetTeam2.value,
+        syncKickoff: syncKickoff.checked,
+ 
+        teams: {
+            team1: [...document.querySelectorAll("#team1 .item")]
+                .map(p => p.dataset.name),
+ 
+            team2: [...document.querySelectorAll("#team2 .item")]
+                .map(p => p.dataset.name),
+ 
+            pool: [...document.querySelectorAll("#pool .item")]
+                .map(p => p.dataset.name)
+        }
+    };
+}
+ 
+ 
+function resetToHtmlInitial(){
+    if(!confirm(
+        "Alle Änderungen werden verworfen.\n\n" +
+        "Der im Programm fest definierte Ausgangszustand wird geladen."
+    )) return;
+ 
+    isLoading = true;
+    localStorage.removeItem("spielplanung_state");
+ 
+    opponent.value = htmlInitialState.opponent;
+    kickoffTeam1.value = htmlInitialState.kickoffTeam1;
+    kickoffTeam2.value = htmlInitialState.kickoffTeam2;
+    meetTeam1.value = htmlInitialState.meetTeam1;
+    meetTeam2.value = htmlInitialState.meetTeam2;
+    syncKickoff.checked = htmlInitialState.syncKickoff;
+ 
+    document.querySelectorAll("input[name=venue]")
+        .forEach(r => r.checked = r.value === htmlInitialState.venue);
+ 
+    // Alle Spieler zurücksetzen (Duplikate existieren hier nicht)
+    document.querySelectorAll(".item").forEach(p => {
+        const name = p.dataset.name;
+ 
+        if(htmlInitialState.teams.team1.includes(name)){
+            team1.appendChild(p);
+        } else if(htmlInitialState.teams.team2.includes(name)){
+            team2.appendChild(p);
+        } else {
+            pool.appendChild(p);
+        }
+    });
+ 
+    updateMeetTimes();
+    updateAll();
+    isLoading = false;
+}
+ 
+ 
+ 
+/* =========================================================
+   TREFFPUNKT-LOGIK
+   ========================================================= */
+ 
+const kickoffTeam2 = document.getElementById("kickoffTeam2");
+const kickoffTeam1 = document.getElementById("kickoffTeam1");
+const meetTeam2 = document.getElementById("meetTeam2");
+const meetTeam1 = document.getElementById("meetTeam1");
+const syncKickoff = document.getElementById("syncKickoff");
+ 
+function minusOneHour(time){
+    if(!time) return "";
+    const [h,m] = time.split(":").map(Number);
+    const d = new Date(2000,0,1,h,m);
+    d.setHours(d.getHours() - 1);
+    return d.toTimeString().slice(0,5);
+}
+ 
+function updateMeetTimes(){
+    // 2. Mannschaft
+    meetTeam2.value = minusOneHour(kickoffTeam2.value);
+ 
+    // 1. Mannschaft
+    if(syncKickoff.checked){
+        meetTeam1.value = kickoffTeam2.value;
+        meetTeam1.disabled = true;
+    } else {
+        meetTeam1.disabled = false;
+        meetTeam1.value = minusOneHour(kickoffTeam1.value);
+    }
+}
+ 
+kickoffTeam2.addEventListener("change", updateMeetTimes);
+kickoffTeam1.addEventListener("change", updateMeetTimes);
+syncKickoff.addEventListener("change", updateMeetTimes);
+ 
+// =========================================================
+// AUTOMATISCH SPEICHERN BEI EINGABEN
+// =========================================================
+ 
+["opponent","kickoffTeam1","kickoffTeam2","meetTeam1","meetTeam2","syncKickoff"]
+.forEach(id => {
+    const el = document.getElementById(id);
+    if(el){
+        el.addEventListener("change", saveState);
+        el.addEventListener("input", saveState);
+    }
+});
+ 
+document.querySelectorAll("input[name=venue]")
+    .forEach(r => r.addEventListener("change", saveState));
+ 
+ 
+// 🔒 HTML-Ausgangszustand EINMAL erfassen
+if(!htmlInitialState){
+    htmlInitialState = captureHtmlInitialState();
+}
+ 
+// 🔄 Autosave laden ODER HTML-Startzustand
+const saved = localStorage.getItem("spielplanung_state");
+ 
+isLoading = true;
+ 
+if(saved){
+    const state = JSON.parse(saved);
+ 
+    // Eingaben
+    opponent.value = state.opponent || "";
+    kickoffTeam1.value = state.kickoffTeam1 || kickoffTeam1.value;
+    kickoffTeam2.value = state.kickoffTeam2 || kickoffTeam2.value;
+    meetTeam1.value = state.meetTeam1 || meetTeam1.value;
+    meetTeam2.value = state.meetTeam2 || meetTeam2.value;
+    syncKickoff.checked = !!state.syncKickoff;
+ 
+    document.querySelectorAll("input[name=venue]")
+        .forEach(r => r.checked = r.value === state.venue);
+ 
+    // Spieler verteilen (Originale + Duplikate)
+            ["pool", "team1", "team2"].forEach(boxId => {
+    const box = document.getElementById(boxId);
+    if(!box || !state.teams[boxId]) return;
+ 
+    state.teams[boxId].forEach(entry => {
+ 
+        // ✅ DUPLIKAT WIEDERHERSTELLEN
+        if(entry.duplicate){
+            const originalName = entry.name.replace(/[()]/g, "");
+            const original = document.querySelector(
+                `.item[data-name="${originalName}"]`
+            );
+ 
+            if(original){
+                createDuplicate(original, box);
+            }
+        }
+ 
+        // ✅ ORIGINALSPIELER VERSCHIEBEN
+        else {
+            const item = document.querySelector(
+                `.item[data-name="${entry.name}"]`
+            );
+            if(item){
+                box.appendChild(item);
+            }
+        }
+ 
+    });
+});
+ 
+}
+ 
+updateMeetTimes();
+updateAll();
+isLoading = false;
+ 
+</script>
+ 
+ 
+</body>
+</html>
